@@ -357,16 +357,46 @@ Intuition : $x$ encode des signaux mesurables (exemples)
 
 ### Cas binaire (intuition)
 
-On calcule un score linéaire :
+#### Fonction sigmoïde
+
+La **sigmoïde** associe un score réel à une probabilité dans $[0,1]$ :
 
 $$
-z = w^\top x + b
+\sigma(x) = \frac{1}{1 + e^{-x}} = \frac{e^{x}}{1 + e^{x}}
 $$
 
-Puis on transforme en probabilité via la sigmoïde :
+#### Régression logistique (binaire)
+
+Comme en régression linéaire, on part d’une combinaison linéaire des entrées (ici $x$ est le vecteur de features) :
 
 $$
-P(y=1\mid x) = \sigma(z) = \frac{1}{1 + e^{-z}}
+z = \beta_0 + \beta^\top x
+$$
+
+La probabilité d’appartenir à la classe $1$ (souvent notée $\pi(x)$ ou $P$) est :
+
+$$
+\pi(x) = P(y=1\mid x) = \sigma(z) = \sigma(\beta_0 + \beta^\top x)
+$$
+
+Exemple de décision binaire (seuil classique) :
+
+$$
+\hat{y} = \mathbb{1}[\pi(x) \ge 0.5]
+$$
+
+#### Odds et logit
+
+Les **cotes** (odds) et le **logit** sont :
+
+$$
+\mathrm{odds}(x) = \frac{\pi(x)}{1 - \pi(x)}\qquad\qquad \mathrm{logit}(\pi(x)) = \ln\Big(\frac{\pi(x)}{1 - \pi(x)}\Big)
+$$
+
+En régression logistique, le logit est linéaire :
+
+$$
+\ln\Big(\frac{\pi(x)}{1 - \pi(x)}\Big) = \beta_0 + \beta^\top x
 $$
 
 ### Cas multi-classes (easy / medium / hard)
@@ -374,7 +404,7 @@ $$
 En 3 classes, on calcule un score par classe $k$ :
 
 $$
-z_k = w_k^\top x + b_k
+z_k = \beta_{k0} + \beta_k^\top x
 $$
 
 Puis on obtient une distribution de probabilités par la **softmax** :
