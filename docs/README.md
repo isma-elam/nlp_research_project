@@ -303,8 +303,9 @@ Le score affiché est un **score continu** dérivé des probabilités, puis conv
 En 3 classes (easy/medium/hard), le projet utilise :
 
 $$
-score\_easy\_0\_100 = 100 \times (P(easy) + 0.5 \times P(medium))
+\mathrm{score}_{easy,\,0\text{–}100} = 100 \times (P(easy) + 0.5 \times P(medium))
 $$
+
 
 Intuition :
 - `easy` → vaut **1** (facile)
