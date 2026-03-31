@@ -442,39 +442,6 @@ Export CSV (recommandé pour analyser ensuite avec pandas / graphes) :
 ./.venv/Scripts/python scripts/validate.py --details-out data/raw/validation_details.csv
 ```
 
-### 2) Matrice de confusion (depuis `validation_details.csv`)
-
-```bash
-python - <<'PY'
-from pathlib import Path
-import pandas as pd
-
-df = pd.read_csv(Path('data/raw/validation_details.csv'))
-labels = ['easy','medium','hard']
-cm = pd.crosstab(
-	pd.Categorical(df['label_true'], categories=labels, ordered=True),
-	pd.Categorical(df['label_pred'], categories=labels, ordered=True),
-	dropna=False,
-)
-print('confusion (rows=true, cols=pred):')
-print(cm.to_string())
-PY
-```
-
-### 3) Voir uniquement les erreurs (pratique pour le debugging)
-
-```bash
-python - <<'PY'
-import pandas as pd
-df = pd.read_csv('data/raw/validation_details.csv')
-if 'correct' in df.columns:
-	bad = df[~df['correct']]
-else:
-	bad = df[df['label_true'] != df['label_pred']]
-print(bad[['label_true','label_pred','text']].to_string(index=False))
-PY
-```
-
 ### 4) Stress-tests (ex : répétition d’un terme)
 
 ```bash
@@ -494,7 +461,7 @@ Signaux principaux :
 - signaux JLPT : comptes et ratios `vocab_*`, `kanji_*`, `grammar_*`
 
 Améliorations (robustesse) :
-- normalisation Unicode **NFKC** avant extraction (stabilité fullwidth/halfwidth)
+- normalisation Unicode **NFKC** avant extraction (stabilité plein largeur/mi-largeur)
 - réduction des faux-positifs (ignore entrées trop courtes, stoplist minimale, etc.)
 - anti double-compte : si plusieurs entrées matchent en sous-chaîne, on garde les matches les plus longs
 - features de **ratios** par niveau (`*_ratio_N5..N1`) + `*_max_level_num`
