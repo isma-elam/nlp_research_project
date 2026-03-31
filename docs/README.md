@@ -355,7 +355,7 @@ Intuition : $x$ encode des signaux mesurables (exemples)
 - ratio de kanji, hiragana, katakana
 - ratios JLPT (vocab/grammaire/kanji matchés)
 
-### Cas binaire (intuition)
+### Cas binaire
 
 On calcule un score linéaire :
 
@@ -421,10 +421,7 @@ Causes typiques (et réalistes) :
 - Si le dataset est petit ou bruité (doublons, phrases quasi-identiques, overlap train/validation), le modèle généralise mal et la matrice de confusion devient trompeuse.
 - Les pondérations de classes (`--class-weight balanced`) peuvent aider, mais doivent rester optionnelles : par défaut on garde un comportement neutre (“réaliste”).
 
-Ce qui a permis d’améliorer / stabiliser `medium` :
-- Validation séparée stricte (`validation_phrases.csv`) + export détaillé (`validation_details.csv`) pour l’analyse d’erreurs.
-- Recentrage des features d’entrée sur des **ratios** (éviter que des compteurs bruts dominent le modèle).
-- Ajout d’une représentation texte (TF‑IDF char n‑grams) en complément des features explicables.
+En pratique, `medium` est souvent la classe la plus difficile à distinguer, car elle se situe naturellement entre `easy` et `hard`.
 
 ---
 
