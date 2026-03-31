@@ -283,24 +283,76 @@ Une ligne par phrase de validation, avec :
 ### 1) `Prediction: ...`
 La classe `easy/medium/hard` affichée par `predict.py` correspond au **choix du modèle** : la probabilité la plus haute (argmax).
 
+Mathématiquement :
+
+$$
+\hat{y} = \arg\max_k P(y=k\mid x)
+$$
+
+Exemple :
+
+- $P(easy)=0.40$
+- $P(medium)=0.35$
+- $P(hard)=0.25$
+
+`Prediction = easy` (car $0.40$ est la plus grande probabilité)
+
 ### 2) `Score (facile): .../100 -> ...`
 Le score affiché est un **score continu** dérivé des probabilités, puis converti en bande (facile/moyen/difficile) via une heuristique.
 
 En 3 classes (easy/medium/hard), le projet utilise :
-`score_easy_0_100 = 100 × ( P(easy) + 0.5 × P(medium) )`
+
+$$
+score\_easy\_0\_100 = 100 \times (P(easy) + 0.5 \times P(medium))
+$$
+
+Intuition :
+- `easy` → vaut **1** (facile)
+- `medium` → vaut **0.5** (semi-facile)
+- `hard` → vaut **0** (pas facile)
+
+Exemple concret (mêmes probabilités que ci-dessus) :
+
+$$
+100\times(0.40 + 0.5\times 0.35)=100\times(0.40+0.175)=57.5
+$$
+
+`Score = 57.5 / 100`
 
 Puis une bande :
 - `score_easy < 33` → difficile
 - `33 ≤ score_easy < 66` → moyen
 - `score_easy ≥ 66` → facile
 
+Ici : `57.5 → moyen`
+
 Note : il est donc possible d’avoir une **classe** `easy` mais un **score** dans la bande “moyen” quand les probabilités sont serrées.
+
+Point important : `Prediction` et `Score` ne répondent pas au même besoin
+
+- `Prediction` = décision brute (argmax)
+- `Score` = nuance / lecture continue (projection sur une échelle 0–100)
+
+Exemple typique d’incertitude (probabilités proches) :
+
+- $P(easy)=0.36$, $P(medium)=0.34$, $P(hard)=0.30$
+- argmax = `easy`
+- score $\approx 100\times(0.36+0.5\times 0.34)=53$ → bande `moyen`
+
+Insight : le score est une **projection 1D** de la distribution de probabilités
+
+On passe de $(P(easy),P(medium),P(hard))$ (3D) à un nombre unique (1D) : on perd de l’information, mais on gagne en lisibilité.
 
 ---
 
 ## Comprendre la Régression Logistique (formules)
 
 Le classifieur final est une **régression logistique** (scikit-learn). Le modèle ne “voit” pas le japonais : il voit un vecteur de features $x$.
+
+Intuition : $x$ encode des signaux mesurables (exemples)
+- longueur / ponctuation
+- ratio de kanji, hiragana, katakana
+- ratios JLPT (vocab/grammaire/kanji matchés)
 
 ### Cas binaire (intuition)
 
@@ -335,6 +387,14 @@ La prédiction affichée (`Prediction: ...`) est l’argmax :
 $$
 \hat{y} = \arg\max_k P(y=k\mid x)
 $$
+
+Rappel : en multi-classes, les probabilités somment à 1 :
+
+$$
+P(easy) + P(medium) + P(hard) = 1
+$$
+
+Le score 0–100 (défini plus haut) est ensuite une manière simple de résumer ces 3 valeurs sur une échelle unique.
 
 ---
 
