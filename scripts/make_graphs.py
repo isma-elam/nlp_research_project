@@ -10,12 +10,11 @@ Utilisation:
     ./.venv/Scripts/python scripts/make_graphs.py
     ./.venv/Scripts/python scripts/make_graphs.py --show
 
-Graphes générés (5):
+Graphes générés (4) 
 1) Matrice de confusion (comptes)
 2) Précision/Rappel/F1 par classe
-3) Distribution du score "easy" 0–100 par label vrai
-4) Calibration: confiance (max proba) vs exactitude
-5) Feature explicable: ratio_kanji vs score 0–100 (coloré par label vrai)
+3) Distribution du score "easy" 0–100 par label vrai (boîte à moustaches)
+4) Feature explicable : ratio_kanji vs score 0–100 (coloré par label vrai)
 """
 
 from __future__ import annotations
@@ -25,12 +24,9 @@ import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-# matplotlib est une dépendance runtime uniquement pour ce script.
-import matplotlib.pyplot as plt
-
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 
 # Permet d'importer feature_extract depuis scripts/
@@ -40,12 +36,11 @@ from feature_extract import extract_features
 
 
 ROOT = Path(__file__).resolve().parent.parent
-
 LABELS: List[str] = ["easy", "medium", "hard"]
 
 
 def _parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Générer 5 graphes (PNG) depuis validation_details.csv")
+    p = argparse.ArgumentParser(description="Générer 4 graphes (PNG) depuis validation_details.csv")
     p.add_argument(
         "--input",
         type=str,
@@ -105,13 +100,11 @@ def _load_validation_details(path: Path) -> pd.DataFrame:
             "Assure-toi que le modèle supporte predict_proba et que validate.py exporte les probabilités."
         )
 
-    # Contrainte: rester dans les 3 classes attendues.
     df = df[df["label_true"].isin(LABELS) & df["label_pred"].isin(LABELS)].copy()
     return df
 
 
 def _easy_score_0_100(p_easy: np.ndarray, p_medium: np.ndarray) -> np.ndarray:
-    # Score heuristique documenté: 100*(p_easy + 0.5*p_medium)
     return 100.0 * (p_easy + 0.5 * p_medium)
 
 
@@ -137,7 +130,6 @@ def _plot_confusion_matrix(df: pd.DataFrame) -> plt.Figure:
     ax.set_xticks(range(len(LABELS)), LABELS)
     ax.set_yticks(range(len(LABELS)), LABELS)
 
-    # Annotations (comptes)
     for i in range(cm.shape[0]):
         for j in range(cm.shape[1]):
             ax.text(j, i, str(int(cm[i, j])), ha="center", va="center", color="black")
@@ -171,7 +163,6 @@ def _plot_per_class_metrics(df: pd.DataFrame) -> plt.Figure:
     ax.set_title("Métriques par classe (validation holdout)")
     ax.legend(loc="lower right")
 
-    # support au-dessus
     for i, s in enumerate(support):
         ax.text(i, 1.02, f"n={int(s)}", ha="center", va="bottom")
 
@@ -182,43 +173,15 @@ def _plot_easy_score_distribution(df: pd.DataFrame) -> plt.Figure:
     score = _easy_score_0_100(df["p_easy"].to_numpy(), df["p_medium"].to_numpy())
 
     data: List[np.ndarray] = []
+    y_true = df["label_true"].to_numpy()
     for lbl in LABELS:
-        data.append(score[df["label_true"].to_numpy() == lbl])
+        data.append(score[y_true == lbl])
 
     fig, ax = plt.subplots(figsize=(7.2, 4.6))
     ax.boxplot(data, tick_labels=LABELS, showfliers=True)
     ax.set_ylim(0.0, 100.0)
     ax.set_ylabel("Score easy (0–100)")
     ax.set_title('Distribution du score "easy" 0–100 par label vrai')
-    return fig
-
-
-def _plot_calibration_max_proba(df: pd.DataFrame) -> plt.Figure:
-    proba = df[["p_easy", "p_medium", "p_hard"]].to_numpy(dtype=float)
-    conf = np.max(proba, axis=1)
-    correct = df["correct"].to_numpy(dtype=float)
-
-    bins = np.linspace(0.0, 1.0, 11)
-    accs: List[float] = []
-    confs: List[float] = []
-
-    for lo, hi in zip(bins[:-1], bins[1:]):
-        mask = (conf >= lo) & (conf < hi)
-        if not np.any(mask):
-            continue
-        accs.append(float(np.mean(correct[mask])))
-        confs.append(float(np.mean(conf[mask])))
-
-    fig, ax = plt.subplots(figsize=(6.6, 5.2))
-    ax.plot([0, 1], [0, 1], linestyle="--", color="gray", linewidth=1, label="parfait")
-    ax.plot(confs, accs, marker="o", label="observé")
-
-    ax.set_xlim(0.0, 1.0)
-    ax.set_ylim(0.0, 1.0)
-    ax.set_xlabel("Confiance moyenne (max proba)")
-    ax.set_ylabel("Exactitude moyenne")
-    ax.set_title("Calibration (binned): confiance vs exactitude")
-    ax.legend(loc="lower right")
     return fig
 
 
@@ -231,11 +194,12 @@ def _plot_ratio_kanji_vs_score(df: pd.DataFrame) -> plt.Figure:
         ratio_kanji.append(float(feats.get("ratio_kanji", 0.0)))
 
     fig, ax = plt.subplots(figsize=(7.2, 4.6))
+    y_true = df["label_true"].astype(str).to_numpy()
 
     for lbl in LABELS:
-        mask = df["label_true"].to_numpy() == lbl
+        mask = y_true == lbl
         ax.scatter(
-            np.array(ratio_kanji)[mask],
+            np.asarray(ratio_kanji)[mask],
             score[mask],
             label=lbl,
             alpha=0.85,
@@ -245,7 +209,7 @@ def _plot_ratio_kanji_vs_score(df: pd.DataFrame) -> plt.Figure:
     ax.set_xlabel("ratio_kanji (feature explicable)")
     ax.set_ylabel("Score easy (0–100)")
     ax.set_ylim(0.0, 100.0)
-    ax.set_title("Feature explicable vs score (coloré par label vrai)")
+    ax.set_title("ratio_kanji vs score (coloré par label vrai)")
     ax.legend(loc="upper right")
     return fig
 
@@ -260,11 +224,10 @@ def main(argv: Iterable[str] | None = None) -> int:
         raise ValueError("validation_details.csv ne contient aucune ligne exploitable.")
 
     figures: List[Tuple[str, plt.Figure]] = [
-        ("01_confusion_matrix_counts.png", _plot_confusion_matrix(df)),
-        ("02_per_class_metrics.png", _plot_per_class_metrics(df)),
-        ("03_easy_score_0_100_by_true_label.png", _plot_easy_score_distribution(df)),
-        ("04_calibration_max_proba.png", _plot_calibration_max_proba(df)),
-        ("05_ratio_kanji_vs_easy_score.png", _plot_ratio_kanji_vs_score(df)),
+        ("01_matrice_de_confusion.png", _plot_confusion_matrix(df)),
+        ("02_metrique_par_classe.png", _plot_per_class_metrics(df)),
+        ("03_easy_score_0_100_vrai_label.png", _plot_easy_score_distribution(df)),
+        ("04_ratio_kanji_vs_easy_score.png", _plot_ratio_kanji_vs_score(df)),
     ]
 
     for filename, fig in figures:
