@@ -22,9 +22,9 @@ def normalize_levels(series: pd.Series) -> pd.Series:
 
 
 def main() -> None:
-    """Pipeline: lecture CSV nettoyé -> export JSON."""
+    """Pipeline : lecture CSV nettoyé -> export JSON."""
     if not RAW_PATH.exists():
-        raise FileNotFoundError(f"Missing input file: {RAW_PATH}")
+        raise FileNotFoundError(f"Fichier d'entrée manquant : {RAW_PATH}")
 
     df = pd.read_csv(RAW_PATH)
 
@@ -52,9 +52,9 @@ def main() -> None:
     lookup = {lvl: sorted(df[df["level"] == lvl]["word"].unique()) for lvl in LEVELS}
     LOOKUP_JSON.write_text(json.dumps(lookup, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    print(f"Saved lookup JSON: {LOOKUP_JSON}")
+    print(f"Lookup vocab sauvegardé : {LOOKUP_JSON}")
     for lvl in LEVELS:
-        print(f"{lvl}: {len(lookup[lvl])} words")
+        print(f"{lvl}: {len(lookup[lvl])} mots")
 
 
 if __name__ == "__main__":

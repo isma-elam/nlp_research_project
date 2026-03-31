@@ -1,4 +1,4 @@
-"""Construit un corpus MVP à partir de phrases manuelles (CSV).
+"""Construit un corpus à partir de phrases manuelles (CSV).
 
 Objectif : éviter toute dépendance à des sources web.
 
@@ -25,13 +25,13 @@ def main() -> None:
     """Construit data/input/corpus.csv à partir de data/input/manual_phrases.csv."""
     if not MANUAL_PATH.exists():
         raise FileNotFoundError(
-            f"Missing manual dataset: {MANUAL_PATH}. Create it with columns text,label."
+            f"Dataset manuel introuvable : {MANUAL_PATH}. Crée-le avec les colonnes text,label."
         )
 
-    print(f"Loading manual dataset {MANUAL_PATH}...")
+    print(f"Chargement du dataset manuel {MANUAL_PATH}...")
     df = pd.read_csv(MANUAL_PATH)
     if "text" not in df.columns or "label" not in df.columns:
-        raise ValueError("manual_phrases.csv must contain columns: text, label")
+        raise ValueError("manual_phrases.csv doit contenir les colonnes : text, label")
 
     df = df[["text", "label"]].copy()
     df = df.dropna(subset=["text", "label"])
@@ -42,10 +42,10 @@ def main() -> None:
     df = df.drop_duplicates(subset=["text"])
     removed = before - len(df)
     if removed:
-        print(f"Removed {removed} duplicate text rows")
+        print(f"Suppression de {removed} doublons (text)")
 
     df.to_csv(OUT_PATH, index=False)
-    print(f"Saved manual corpus ({len(df)} rows) -> {OUT_PATH}")
+    print(f"Corpus sauvegardé ({len(df)} lignes) -> {OUT_PATH}")
     print(df["label"].value_counts())
 
 

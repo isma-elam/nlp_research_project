@@ -19,10 +19,10 @@ PY_OUT = ROOT / "data" / "dictionaries" / "jlpt_data.py"
 def load_kanji_levels(csv_path: Path) -> Dict[str, int]:
     """Charge joyo.csv et extrait un dict {kanji: jlpt} (N1..N5)."""
     if not csv_path.exists():
-        raise FileNotFoundError(f"Missing joyo CSV at {csv_path}")
+        raise FileNotFoundError(f"CSV joyo introuvable : {csv_path}")
     df = pd.read_csv(csv_path)
     if "kanji" not in df.columns or "jlpt" not in df.columns:
-        raise ValueError("joyo.csv must contain columns 'kanji' and 'jlpt'")
+        raise ValueError("joyo.csv doit contenir les colonnes 'kanji' et 'jlpt'")
 
     df = df[["kanji", "jlpt"]].dropna()
     df["kanji"] = df["kanji"].astype(str).str.strip()
@@ -45,13 +45,13 @@ def load_kanji_meta(csv_path: Path) -> Dict[str, Dict[str, int]]:
     - frequency: rang/score de fréquence (source du CSV)
     """
     if not csv_path.exists():
-        raise FileNotFoundError(f"Missing joyo CSV at {csv_path}")
+        raise FileNotFoundError(f"CSV joyo introuvable : {csv_path}")
 
     df = pd.read_csv(csv_path)
     required = {"kanji", "jlpt", "strokes", "frequency"}
     missing = required - set(df.columns)
     if missing:
-        raise ValueError(f"joyo.csv missing columns: {sorted(missing)}")
+        raise ValueError(f"joyo.csv : colonnes manquantes : {sorted(missing)}")
 
     df = df[["kanji", "jlpt", "strokes", "frequency"]].dropna()
     df["kanji"] = df["kanji"].astype(str).str.strip()
@@ -81,7 +81,7 @@ def save_json(levels: Dict[str, int], path: Path) -> None:
 
 def save_py(levels: Dict[str, int], path: Path) -> None:
     """Optionnel: génère un module Python 'jlpt_data.py' (legacy)."""
-    # Generates a lightweight Python dict module for legacy compatibility
+    # Génère un module Python léger (dict) pour compatibilité legacy.
     lines = ["jlpt_data = {"]
     for k, v in levels.items():
         lines.append(f"    '{k}': {v},")
@@ -99,16 +99,20 @@ def main(emit_py: bool) -> None:
         save_py(levels, PY_OUT)
 
     counts = pd.Series(levels.values()).value_counts().sort_index()
-    print(f"Saved {len(levels)} kanji levels -> {JSON_OUT}")
-    print(f"Saved {len(meta)} kanji meta -> {JSON_META_OUT}")
+    print(f"Niveaux kanji sauvegardés ({len(levels)}) -> {JSON_OUT}")
+    print(f"Métadonnées kanji sauvegardées ({len(meta)}) -> {JSON_META_OUT}")
     if emit_py:
-        print(f"Saved Python dict -> {PY_OUT}")
+        print(f"Dict Python sauvegardé -> {PY_OUT}")
     for lvl, cnt in counts.items():
         print(f"JLPT N{lvl}: {cnt}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Build kanji->JLPT level mapping from joyo.csv")
-    parser.add_argument("--emit-py", action="store_true", help="Also write jlpt_data.py for legacy code")
+    parser = argparse.ArgumentParser(description="Construire le mapping kanji->niveau JLPT depuis joyo.csv")
+    parser.add_argument(
+        "--emit-py",
+        action="store_true",
+        help="Écrire aussi jlpt_data.py pour compatibilité legacy",
+    )
     args = parser.parse_args()
     main(emit_py=args.emit_py)

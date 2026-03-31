@@ -1,18 +1,18 @@
 """Prédit la difficulté d'une phrase japonaise avec le modèle baseline.
 
-Usage:
-  python scripts/predict.py --text "今日はいい天気です。"
-  python scripts/predict.py            # mode interactif
+Utilisation :
+    python scripts/predict.py --text "今日はいい天気です。"
+    python scripts/predict.py            # mode interactif
 
-Sortie:
+Sortie :
     - label prédit (ex: easy/medium/hard) avec couleur optionnelle
-  - probas si disponibles
+    - probas si disponibles
     - score facile (0–100) + pourcentage de difficulté
     - aperçu de quelques features explicables
 
-Notes:
-  - Le script cherche le modèle dans `data/raw/` (compat).
-  - Si tu modifies `scripts/feature_extract.py` (ex: ponctuation), il faut ré-entraîner.
+Notes :
+    - Le script cherche le modèle dans `data/raw/` (compat).
+    - Si tu modifies `scripts/feature_extract.py` (ex: ponctuation), il faut ré-entraîner.
 """
 
 from __future__ import annotations
@@ -31,7 +31,8 @@ sys.path.append(str(Path(__file__).resolve().parent))
 import joblib
 import pandas as pd
 
-from feature_extract import extract_features
+from feature_extract import extract_features, extract_match_trace
+from model_features import build_feature_row_for_model
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -43,7 +44,7 @@ def _norm_text_strict(text: str) -> str:
 
 
 def _is_punct(ch: str) -> bool:
-    # Unicode category 'P*' => punctuation
+    # Catégorie Unicode 'P*' => ponctuation
     return bool(ch) and unicodedata.category(ch).startswith("P")
 
 
@@ -82,7 +83,7 @@ def _warn_if_in_corpus(text: str) -> None:
     hay_strict = {_norm_text_strict(t) for t in df["text"].dropna().astype(str).tolist()}
     if needle_strict in hay_strict:
         print(
-            "WARNING: cette phrase est DÉJÀ dans data/input/corpus.csv (donc vue au train/test). "
+            "AVERTISSEMENT: cette phrase est DÉJÀ dans data/input/corpus.csv (donc vue au train/test). "
             "Une 'validation' sur cette phrase n'est pas honnête.",
             file=sys.stderr,
         )
@@ -92,7 +93,7 @@ def _warn_if_in_corpus(text: str) -> None:
     hay_loose = {_norm_text_loose(t) for t in df["text"].dropna().astype(str).tolist()}
     if needle_loose and needle_loose in hay_loose:
         print(
-            "WARNING: phrase très proche d'une phrase du corpus (match sans ponctuation/espaces). "
+            "AVERTISSEMENT: phrase très proche d'une phrase du corpus (match sans ponctuation/espaces). "
             "Risque de 'triche' si tu valides dessus.",
             file=sys.stderr,
         )
@@ -104,7 +105,7 @@ def _find_model_path(explicit: Optional[str]) -> Path:
         if not p.is_absolute():
             p = (ROOT / p).resolve()
         if not p.exists():
-            raise FileNotFoundError(f"Model not found: {p}")
+            raise FileNotFoundError(f"Modèle introuvable : {p}")
         return p
 
     for p in _candidate_paths():
@@ -112,8 +113,7 @@ def _find_model_path(explicit: Optional[str]) -> Path:
             return p
 
     raise FileNotFoundError(
-        "No baseline model found. Expected one of: "
-        + ", ".join(str(p) for p in _candidate_paths())
+        "Aucun modèle baseline trouvé. Attendu : " + ", ".join(str(p) for p in _candidate_paths())
     )
 
 
@@ -131,22 +131,37 @@ def _colorize(text: str, color_code: str, enabled: bool) -> str:
 
 
 def _build_feature_row(text: str) -> pd.DataFrame:
-    feats = extract_features(text)
-    return pd.DataFrame([feats]).fillna(0.0)
+    return build_feature_row_for_model(text)
 
 
-def _safe_predict_proba(model: Any, X: pd.DataFrame) -> Optional[Dict[str, float]]:
+def _safe_predict_proba(model: Any, X: Any) -> Optional[Dict[str, float]]:
     if not hasattr(model, "predict_proba") or not hasattr(model, "classes_"):
         return None
-    proba = model.predict_proba(X)
-    classes = list(getattr(model, "classes_"))
-    return {str(cls): float(p) for cls, p in zip(classes, proba[0])}
+    try:
+        proba = model.predict_proba(X)
+        classes = list(getattr(model, "classes_"))
+        return {str(cls): float(p) for cls, p in zip(classes, proba[0])}
+    except Exception:
+        return None
+
+
+def _confidence_predicted(proba: Optional[Dict[str, float]], predicted_label: str) -> Optional[float]:
+    """Probabilité de la classe prédite (si disponible)."""
+    if proba is None:
+        return None
+    if predicted_label in proba:
+        return float(proba[predicted_label])
+    try:
+        return float(max(proba.values())) if proba else None
+    except Exception:
+        return None
 
 
 def _score_easy_0_100(proba: Optional[Dict[str, float]], predicted_label: str) -> Optional[float]:
-    """Return an easy-score in [0,100]. 100 = easy, 0 = hard.
+    """Renvoie un score de facilité dans [0, 100]. 100 = facile, 0 = difficile.
 
-    - 3 classes (easy/medium/hard): score = 100 * (P(easy) + 0.5 * P(medium))
+    En 3 classes (easy/medium/hard) :
+      score = 100 × (P(easy) + 0.5 × P(medium))
     """
     if proba is None:
         return None
@@ -155,15 +170,15 @@ def _score_easy_0_100(proba: Optional[Dict[str, float]], predicted_label: str) -
     pmed = proba.get("medium")
     phard = proba.get("hard")
 
-    # 3 classes (preferred)
+    # 3 classes (cas normal)
     if peasy is not None:
         return 100.0 * (float(peasy) + 0.5 * float(pmed or 0.0))
 
-    # 2 classes fallback
+    # 2 classes (repli)
     if phard is not None:
         return 100.0 * (1.0 - float(phard))
 
-    # Last resort: use probability of predicted label if present
+    # Dernier recours : proba du label prédit si disponible
     if predicted_label in proba:
         return 100.0 * float(proba[predicted_label])
 
@@ -177,12 +192,7 @@ def _difficulty_0_100(score_easy: Optional[float]) -> Optional[float]:
 
 
 def _band_from_score(score_easy: Optional[float]) -> Optional[str]:
-    """Simple interpretation bands.
-
-    Examples from user:
-      23% -> relatively difficult
-      53% -> medium
-    """
+    """Interprétation simple en 3 bandes (heuristique)."""
     if score_easy is None:
         return None
     if score_easy < 33.0:
@@ -226,6 +236,7 @@ def _build_json_output(
         "text": text,
         "label": label,
         "proba": proba,
+        "confidence_predicted_0_1": _confidence_predicted(proba, label),
         "score_easy_0_100": None if score_easy is None else float(score_easy),
         "difficulty_0_100": None if difficulty is None else float(difficulty),
         "band": band,
@@ -254,8 +265,12 @@ def _print_human_output(
     else:
         colored = _colorize(label_str, "33", use_color)
 
-    print(f"Model: {model_path}")
-    print(f"Prediction: {colored}")
+    print(f"Modèle: {model_path}")
+    print(f"Prédiction: {colored}")
+
+    conf = _confidence_predicted(proba, label_str)
+    if conf is not None:
+        print(f"Confiance (classe prédite): {100.0 * conf:.1f}%")
 
     if score_easy is not None:
         score_txt = (
@@ -278,27 +293,32 @@ def _print_human_output(
 
     if proba is not None:
         proba_str = ", ".join(f"{k}={v:.3f}" for k, v in sorted(proba.items()))
-        print(f"Proba: {proba_str}")
+        print(f"Probabilités (modèle): {proba_str}")
 
-    print("Features (aperçu):")
+    print("Caractéristiques (aperçu) :")
     for k, v in preview.items():
         print(f"  - {k}: {v}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Predict difficulty for a Japanese sentence")
-    parser.add_argument("--text", type=str, default=None, help="Input Japanese text")
-    parser.add_argument("--model", type=str, default=None, help="Path to .joblib model (optional)")
-    parser.add_argument("--no-color", action="store_true", help="Disable colored output")
+    parser = argparse.ArgumentParser(description="Prédire la difficulté d'une phrase japonaise")
+    parser.add_argument("--text", type=str, default=None, help="Texte japonais en entrée")
+    parser.add_argument("--model", type=str, default=None, help="Chemin vers le modèle .joblib (optionnel)")
+    parser.add_argument("--no-color", action="store_true", help="Désactiver les couleurs ANSI")
     parser.add_argument(
         "--no-leak-check",
         action="store_true",
-        help="Disable warning when input text is found in data/input/corpus.csv",
+        help="Désactiver l'avertissement si la phrase est trouvée dans data/input/corpus.csv",
     )
     parser.add_argument(
         "--json",
         action="store_true",
-        help="Output a JSON object (label/proba/features) for downstream use",
+        help="Sortir un objet JSON (label/proba/features) pour usage en aval",
+    )
+    parser.add_argument(
+        "--trace",
+        action="store_true",
+        help="Afficher les vocabs/grammaires JLPT matchés (debug : pourquoi la phrase est jugée difficile)",
     )
     args = parser.parse_args()
 
@@ -308,7 +328,7 @@ def main() -> None:
         text = input("Entre une phrase japonaise: ").strip()
 
     if not text:
-        raise SystemExit("Empty input text")
+        raise SystemExit("Texte vide")
 
     if not args.no_leak_check:
         _warn_if_in_corpus(text)
@@ -316,16 +336,36 @@ def main() -> None:
     model_path = _find_model_path(args.model)
     model = joblib.load(model_path)
 
-    X = _build_feature_row(text)
-    label = model.predict(X)[0]
+    # Nouveau modèle: consomme le texte brut. Compat: fallback sur features numériques.
+    try:
+        label = model.predict([text])[0]
+        proba = _safe_predict_proba(model, [text])
+    except Exception:
+        X = _build_feature_row(text)
+        label = model.predict(X)[0]
+        proba = _safe_predict_proba(model, X)
+
     label_str = str(label)
 
     feats = extract_features(text)
+
     preview = _feature_preview(feats)
-    proba = _safe_predict_proba(model, X)
     score_easy = _score_easy_0_100(proba, predicted_label=label_str)
     difficulty = _difficulty_0_100(score_easy)
     band = _band_from_score(score_easy)
+
+    if args.trace:
+        trace = extract_match_trace(text)
+        print("Match trace (JLPT) :")
+        for cat in ["vocab", "grammar"]:
+            if cat not in trace:
+                continue
+            print(f"- {cat}:")
+            by_level = trace[cat]
+            for lvl in ["N5", "N4", "N3", "N2", "N1"]:
+                toks = by_level.get(lvl, [])
+                if toks:
+                    print(f"  {lvl}: {', '.join(toks)}")
 
     if args.json:
         out = _build_json_output(
