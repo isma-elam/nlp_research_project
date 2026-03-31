@@ -13,7 +13,7 @@ Le projet est structuré autour de 3 blocs :
 
 Le cœur du projet est une chaîne expérimentale reproductible :
 
-**texte japonais → features linguistiques → classification (easy/medium/hard) → métriques → analyse d’erreurs**
+**texte japonais → features linguistiques → classification (easy/medium/hard) → métriques → analyse**
 
 L’approche mise en place privilégie des features interprétables (ex : densité de kanji, ratios de niveaux JLPT) pour :
 - relier la prédiction à des signaux compréhensibles,
